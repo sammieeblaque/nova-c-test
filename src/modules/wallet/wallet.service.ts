@@ -116,18 +116,21 @@ export class WalletService {
   }
 
   async transfer(
-    senderWalletId: string,
     transferDto: TransferDto,
   ): Promise<{ sender: Wallet; receiver: Wallet }> {
-    const { receiverWalletId, amount, idempotencyKey, description } =
-      transferDto;
+    const {
+      receiverWalletId,
+      amount,
+      idempotencyKey,
+      description,
+      senderWalletId,
+    } = transferDto;
 
     if (senderWalletId === receiverWalletId) {
       throw new BadRequestException('Cannot transfer to the same wallet');
     }
 
     return this.entityManager.transaction(async (entityManager) => {
-      // Check for idempotency
       if (idempotencyKey) {
         const existingTransaction = await entityManager.findOne(Transaction, {
           where: {
@@ -143,7 +146,6 @@ export class WalletService {
         }
       }
 
-      // Lock both wallets (in consistent order to prevent deadlocks)
       const walletIds = [senderWalletId, receiverWalletId].sort();
       const [wallet1, wallet2] = await Promise.all([
         entityManager.findOne(Wallet, {
@@ -197,7 +199,7 @@ export class WalletService {
       // Create transaction records
       const senderTransaction = entityManager.create(Transaction, {
         walletId: senderWalletId,
-        type: TransactionType.DEBit,
+        type: TransactionType.DEBIT,
         amount: -amount,
         balanceBefore: senderBalanceBefore,
         balanceAfter: senderWallet.balance,

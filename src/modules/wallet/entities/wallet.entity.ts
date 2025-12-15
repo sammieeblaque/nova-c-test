@@ -1,6 +1,6 @@
 import { Entity, Column, OneToMany, Check } from 'typeorm';
-import { CoreBaseEntity } from '@src/shared/base.entity';
-import { Transaction } from '@src/modules/wallet/entities/transaction.entity';
+import { Transaction } from './transaction.entity';
+import { CoreBaseEntity } from '../../../shared/base.entity';
 
 @Entity('wallets')
 @Check('"balance" >= 0') // prevents negative balance

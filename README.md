@@ -69,13 +69,14 @@ Response:
 
 ### 2. Fund Wallet
 
-**POST** `/wallets/:id/fund`
+**POST** `/wallets/fund`
 
 Request:
 
 ```json
 {
   "amount": 100.5,
+  "wallet_id": "unique-key-126"
   "idempotencyKey": "unique-key-123", // Optional
   "description": "Initial funding" // Optional
 }
@@ -88,20 +89,21 @@ Response:
   "id": "uuid",
   "currency": "USD",
   "balance": 100.5,
-  "createdAt": "2024-01-01T00:00:00.000Z",
+  "createdAt": "2024-01-01T00:00:00.000Z",****
   "updatedAt": "2024-01-01T00:00:00.000Z"
 }
 ```
 
 ### 3. Transfer Between Wallets
 
-**POST** `/wallets/:id/transfer`
+**POST** `/wallets/transfer`
 
 Request:
 
 ```json
 {
   "receiverWalletId": "receiver-uuid",
+  "senderWalletId": "sender-uuid",
   "amount": 50.25,
   "idempotencyKey": "unique-transfer-key", // Optional
   "description": "Payment for services" // Optional

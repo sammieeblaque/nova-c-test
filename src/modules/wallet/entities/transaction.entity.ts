@@ -1,11 +1,11 @@
-import { Wallet } from '@src/modules/wallet/entities/wallet.entity';
-import { CoreBaseEntity } from '@src/shared/base.entity';
+import { CoreBaseEntity } from '../../../shared/base.entity';
 import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
+import { Wallet } from './wallet.entity';
 
 export enum TransactionType {
   FUND = 'fund',
   CREDIT = 'credit',
-  DEBit = 'debit',
+  DEBIT = 'debit',
 }
 
 export enum TransactionStatus {

@@ -1,4 +1,4 @@
-import { Transaction } from '@src/modules/wallet/entities/transaction.entity';
+import { Transaction } from '../entities/transaction.entity';
 
 export class WalletResponseDto {
   id: string;

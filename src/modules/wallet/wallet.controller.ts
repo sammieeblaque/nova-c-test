@@ -63,10 +63,7 @@ export class WalletController {
     sender: WalletResponseDto;
     receiver: WalletResponseDto;
   }> {
-    const result = await this.walletService.transfer(
-      transferDto.senderWalletId,
-      transferDto,
-    );
+    const result = await this.walletService.transfer(transferDto);
     return {
       sender: {
         id: result.sender.id,
