@@ -45,25 +45,25 @@ export class Transaction extends CoreBaseEntity {
     type: 'decimal',
     precision: 15,
     scale: 2,
-    name: 'balance_before',
+    name: 'opening_balance',
     transformer: {
       to: (value: number) => value,
       from: (value: string) => parseFloat(value),
     },
   })
-  balanceBefore: number;
+  openingBalance: number;
 
   @Column({
     type: 'decimal',
     precision: 15,
     scale: 2,
-    name: 'balance_after',
+    name: 'closing_balance',
     transformer: {
       to: (value: number) => value,
       from: (value: string) => parseFloat(value),
     },
   })
-  balanceAfter: number;
+  closingBalance: number;
 
   @Column({
     type: 'enum',

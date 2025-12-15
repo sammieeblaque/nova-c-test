@@ -22,6 +22,8 @@ export class WalletService {
   constructor(
     @InjectRepository(Wallet)
     private walletRepository: Repository<Wallet>,
+    @InjectRepository(Transaction)
+    private readonly transactionRepository: Repository<Transaction>,
     @InjectEntityManager()
     private readonly entityManager: EntityManager,
   ) {}
@@ -63,23 +65,25 @@ export class WalletService {
   }
 
   async fund(id: string, fundWalletDto: FundWalletDto): Promise<Wallet> {
-    return this.entityManager.transaction(async (entityManager) => {
-      // Check for idempotency
-      if (fundWalletDto.idempotencyKey) {
-        const existingTransaction = await entityManager.findOne(Transaction, {
-          where: {
-            walletId: id,
-            idempotencyKey: fundWalletDto.idempotencyKey,
-          },
-        });
+    if (fundWalletDto.amount <= 0) {
+      throw new BadRequestException('Amount must be greater than 0');
+    }
 
-        if (existingTransaction) {
-          throw new ConflictException(
-            'Transaction with this idempotency key already exists',
-          );
-        }
+    // Check idempotency BEFORE transaction
+    if (fundWalletDto.idempotencyKey) {
+      const existingTransaction = await this.transactionRepository.findOne({
+        where: {
+          walletId: id,
+          idempotencyKey: fundWalletDto.idempotencyKey,
+        },
+      });
+
+      if (existingTransaction) {
+        throw new ConflictException('Transaction already successful');
       }
+    }
 
+    return this.entityManager.transaction(async (entityManager) => {
       // Lock the wallet row for update
       const wallet = await entityManager.findOne(Wallet, {
         where: { id },
@@ -90,8 +94,8 @@ export class WalletService {
         throw new NotFoundException(`Wallet with ID ${id} not found`);
       }
 
-      const balanceBefore = wallet.balance;
-      const newBalance = balanceBefore + fundWalletDto.amount;
+      const openBalance = wallet.balance;
+      const newBalance = openBalance + fundWalletDto.amount;
 
       // Update wallet balance
       wallet.balance = newBalance;
@@ -102,8 +106,8 @@ export class WalletService {
         walletId: id,
         type: TransactionType.FUND,
         amount: fundWalletDto.amount,
-        balanceBefore,
-        balanceAfter: newBalance,
+        openingBalance: openBalance,
+        closingBalance: newBalance,
         status: TransactionStatus.COMPLETED,
         idempotencyKey: fundWalletDto.idempotencyKey,
         description: fundWalletDto.description || 'Wallet funding',
@@ -130,24 +134,62 @@ export class WalletService {
       throw new BadRequestException('Cannot transfer to the same wallet');
     }
 
-    return this.entityManager.transaction(async (entityManager) => {
-      if (idempotencyKey) {
-        const existingTransaction = await entityManager.findOne(Transaction, {
-          where: {
-            walletId: senderWalletId,
-            idempotencyKey,
-          },
-        });
+    if (amount <= 0) {
+      throw new BadRequestException('Transfer amount must be greater than 0');
+    }
 
-        if (existingTransaction) {
-          throw new ConflictException(
-            'Transaction with this idempotency key already exists',
-          );
-        }
+    // Check idempotency BEFORE transaction
+    if (idempotencyKey) {
+      const existingTransaction = await this.transactionRepository.findOne({
+        where: {
+          walletId: senderWalletId,
+          idempotencyKey,
+        },
+      });
+
+      if (existingTransaction) {
+        throw new ConflictException(
+          'Transaction with this idempotency key already exists',
+        );
       }
+    }
 
+    const [senderWallet, receiverWallet] = await Promise.all([
+      this.walletRepository.findOne({ where: { id: senderWalletId } }),
+      this.walletRepository.findOne({ where: { id: receiverWalletId } }),
+    ]);
+
+    if (!senderWallet) {
+      throw new NotFoundException(
+        `Sender wallet with ID ${senderWalletId} not found`,
+      );
+    }
+
+    if (!receiverWallet) {
+      throw new NotFoundException(
+        `Receiver wallet with ID ${receiverWalletId} not found`,
+      );
+    }
+
+    // More validations before transaction
+    if (senderWallet.currency !== receiverWallet.currency) {
+      throw new BadRequestException(
+        'Cannot transfer between wallets with different currencies',
+      );
+    }
+
+    if (senderWallet.balance < amount) {
+      throw new BadRequestException(
+        `Insufficient balance. Available: ${senderWallet.balance}, Required: ${amount}`,
+      );
+    }
+
+    return this.entityManager.transaction(async (entityManager) => {
+      // Update balances
+
+      // Acquire locks IN CONSISTENT ORDER to prevent deadlocks - INSIDE transaction
       const walletIds = [senderWalletId, receiverWalletId].sort();
-      const [wallet1, wallet2] = await Promise.all([
+      const [lockedWallet1, lockedWallet2] = await Promise.all([
         entityManager.findOne(Wallet, {
           where: { id: walletIds[0] },
           lock: { mode: 'pessimistic_write' },
@@ -158,51 +200,34 @@ export class WalletService {
         }),
       ]);
 
-      const senderWallet = wallet1?.id === senderWalletId ? wallet1 : wallet2;
-      const receiverWallet =
-        wallet1?.id === receiverWalletId ? wallet1 : wallet2;
+      // Map locked wallets back to sender/receiver
+      const lockedSenderWallet = (
+        lockedWallet1?.id === senderWalletId ? lockedWallet1 : lockedWallet2
+      ) as Wallet;
+      const lockedReceiverWallet = (
+        lockedWallet1?.id === receiverWalletId ? lockedWallet1 : lockedWallet2
+      ) as Wallet;
 
-      if (!senderWallet) {
-        throw new NotFoundException(
-          `Sender wallet with ID ${senderWalletId} not found`,
-        );
-      }
-
-      if (!receiverWallet) {
-        throw new NotFoundException(
-          `Receiver wallet with ID ${receiverWalletId} not found`,
-        );
-      }
-
-      if (senderWallet.currency !== receiverWallet.currency) {
+      if (lockedSenderWallet.balance < amount) {
         throw new BadRequestException(
-          'Cannot transfer between wallets with different currencies',
+          `Insufficient balance. Available: ${lockedSenderWallet.balance}, Required: ${amount}`,
         );
       }
+      const senderBalanceBefore = lockedSenderWallet.balance;
+      const receiverBalanceBefore = lockedReceiverWallet.balance;
 
-      if (senderWallet.balance < amount) {
-        throw new BadRequestException(
-          `Insufficient balance. Available: ${senderWallet.balance}, Required: ${amount}`,
-        );
-      }
+      lockedSenderWallet.balance = senderBalanceBefore - amount;
+      lockedReceiverWallet.balance = receiverBalanceBefore + amount;
 
-      // Update balances
-      const senderBalanceBefore = senderWallet.balance;
-      const receiverBalanceBefore = receiverWallet.balance;
+      await entityManager.save(Wallet, lockedSenderWallet);
+      await entityManager.save(Wallet, lockedReceiverWallet);
 
-      senderWallet.balance = senderBalanceBefore - amount;
-      receiverWallet.balance = receiverBalanceBefore + amount;
-
-      await entityManager.save(Wallet, senderWallet);
-      await entityManager.save(Wallet, receiverWallet);
-
-      // Create transaction records
       const senderTransaction = entityManager.create(Transaction, {
         walletId: senderWalletId,
         type: TransactionType.DEBIT,
-        amount: -amount,
-        balanceBefore: senderBalanceBefore,
-        balanceAfter: senderWallet.balance,
+        amount: amount,
+        openingBalance: senderBalanceBefore,
+        closingBalance: lockedSenderWallet.balance,
         status: TransactionStatus.COMPLETED,
         relatedWalletId: receiverWalletId,
         idempotencyKey,
@@ -213,8 +238,8 @@ export class WalletService {
         walletId: receiverWalletId,
         type: TransactionType.CREDIT,
         amount,
-        balanceBefore: receiverBalanceBefore,
-        balanceAfter: receiverWallet.balance,
+        openingBalance: receiverBalanceBefore,
+        closingBalance: lockedReceiverWallet.balance,
         status: TransactionStatus.COMPLETED,
         relatedWalletId: senderWalletId,
         description: description || `Transfer from ${senderWalletId}`,
@@ -225,7 +250,7 @@ export class WalletService {
         receiverTransaction,
       ]);
 
-      return { sender: senderWallet, receiver: receiverWallet };
+      return { sender: lockedSenderWallet, receiver: lockedReceiverWallet };
     });
   }
 }
