@@ -11,11 +11,15 @@ export class TransferDto {
   @IsUUID('4', { message: 'Receiver wallet ID must be a valid UUID' })
   receiverWalletId: string;
 
+  @IsUUID('4', { message: 'Sender wallet ID must be a valid UUID' })
+  senderWalletId: string;
+
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive({ message: 'Amount must be positive' })
   @Type(() => Number)
   amount: number;
 
+  @IsUUID('4')
   @IsOptional()
   @IsString()
   idempotencyKey?: string;

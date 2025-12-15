@@ -36,13 +36,18 @@ export class WalletController {
     };
   }
 
-  @Post(':id/fund')
+  @Get()
   @HttpCode(HttpStatus.OK)
-  async fund(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() fundWalletDto: FundWalletDto,
-  ): Promise<WalletResponseDto> {
-    const wallet = await this.walletService.fund(id, fundWalletDto);
+  async getWallets() {
+    return this.walletService.find();
+  }
+  @Post('fund')
+  @HttpCode(HttpStatus.OK)
+  async fund(@Body() fundWalletDto: FundWalletDto): Promise<WalletResponseDto> {
+    const wallet = await this.walletService.fund(
+      fundWalletDto.wallet_id,
+      fundWalletDto,
+    );
     return {
       id: wallet.id,
       currency: wallet.currency,
@@ -52,16 +57,16 @@ export class WalletController {
     };
   }
 
-  @Post(':id/transfer')
+  @Post('transfer')
   @HttpCode(HttpStatus.OK)
-  async transfer(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() transferDto: TransferDto,
-  ): Promise<{
+  async transfer(@Body() transferDto: TransferDto): Promise<{
     sender: WalletResponseDto;
     receiver: WalletResponseDto;
   }> {
-    const result = await this.walletService.transfer(id, transferDto);
+    const result = await this.walletService.transfer(
+      transferDto.senderWalletId,
+      transferDto,
+    );
     return {
       sender: {
         id: result.sender.id,

@@ -3,9 +3,9 @@ import { CoreBaseEntity } from '@src/shared/base.entity';
 import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 
 export enum TransactionType {
-  FUND = 'FUND',
-  TRANSFER_IN = 'TRANSFER_IN',
-  TRANSFER_OUT = 'TRANSFER_OUT',
+  FUND = 'fund',
+  CREDIT = 'credit',
+  DEBit = 'debit',
 }
 
 export enum TransactionStatus {

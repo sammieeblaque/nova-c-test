@@ -4,12 +4,15 @@ import helmet from 'helmet';
 import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule } from './modules/swagger/swagger.module';
+import { HttpExceptionsFilter } from './common/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const reflector = app.get(Reflector);
   const configService = app.get(ConfigService);
   const { swaggerApiRoot } = configService.get('swagger');
+
+  app.useGlobalFilters(new HttpExceptionsFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({

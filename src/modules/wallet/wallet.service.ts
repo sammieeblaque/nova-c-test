@@ -42,6 +42,10 @@ export class WalletService {
     return wallet;
   }
 
+  async find(): Promise<Wallet[]> {
+    return await this.walletRepository.find();
+  }
+
   async findOneWithTransactions(id: string): Promise<Wallet> {
     const wallet = await this.walletRepository.findOne({
       where: { id },
@@ -193,7 +197,7 @@ export class WalletService {
       // Create transaction records
       const senderTransaction = entityManager.create(Transaction, {
         walletId: senderWalletId,
-        type: TransactionType.TRANSFER_OUT,
+        type: TransactionType.DEBit,
         amount: -amount,
         balanceBefore: senderBalanceBefore,
         balanceAfter: senderWallet.balance,
@@ -205,7 +209,7 @@ export class WalletService {
 
       const receiverTransaction = entityManager.create(Transaction, {
         walletId: receiverWalletId,
-        type: TransactionType.TRANSFER_IN,
+        type: TransactionType.CREDIT,
         amount,
         balanceBefore: receiverBalanceBefore,
         balanceAfter: receiverWallet.balance,
