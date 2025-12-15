@@ -69,7 +69,7 @@ export class Transaction extends CoreBaseEntity {
   @Column({
     type: 'enum',
     enum: TransactionStatus,
-    default: TransactionStatus.COMPLETED,
+    default: TransactionStatus.PENDING,
   })
   status: TransactionStatus;
 
