@@ -1,4 +1,3 @@
-// src/transaction/entities/transaction.entity.ts
 import { Wallet } from '@src/modules/wallet/entities/wallet.entity';
 import { CoreBaseEntity } from '@src/shared/base.entity';
 import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';

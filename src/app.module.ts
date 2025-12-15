@@ -6,6 +6,7 @@ import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import typeorm from './config/typeorm.config';
 import swagger from './config/swagger.config';
 import app from '@config/app.config';
+import { WalletModule } from './modules/wallet/wallet.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import app from '@config/app.config';
         return orm;
       },
     }),
+    WalletModule,
   ],
   controllers: [AppController],
   providers: [AppService],
