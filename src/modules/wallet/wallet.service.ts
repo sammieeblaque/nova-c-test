@@ -69,7 +69,6 @@ export class WalletService {
       throw new BadRequestException('Amount must be greater than 0');
     }
 
-    // Check idempotency BEFORE transaction
     if (fundWalletDto.idempotencyKey) {
       const existingTransaction = await this.transactionRepository.findOne({
         where: {
@@ -84,7 +83,6 @@ export class WalletService {
     }
 
     return this.entityManager.transaction(async (entityManager) => {
-      // Lock the wallet row for update
       const wallet = await entityManager.findOne(Wallet, {
         where: { id },
         lock: { mode: 'pessimistic_write' },
@@ -135,7 +133,7 @@ export class WalletService {
     }
 
     if (amount <= 0) {
-      throw new BadRequestException('Transfer amount must be greater than 0');
+      throw new BadRequestException('Transfer amount must be greater than $0');
     }
 
     // Check idempotency BEFORE transaction
@@ -148,9 +146,7 @@ export class WalletService {
       });
 
       if (existingTransaction) {
-        throw new ConflictException(
-          'Transaction with this idempotency key already exists',
-        );
+        throw new ConflictException('Transaction with id already successfull'); // error message can definitely be better
       }
     }
 

@@ -240,10 +240,6 @@ npm run test:watch
    - Cache wallet balances in Redis with short TTL
    - Invalidate cache on updates
    - Use for read-heavy scenarios
-3. **Queue System**:
-   - Use message queues (RabbitMQ, SQS) for async operations
-   - Process non-critical operations asynchronously
-4. **Circuit Breaker**: Implement circuit breaker pattern for external service calls
 
 ### Monitoring & Observability
 
@@ -280,33 +276,3 @@ npm run test:watch
 2. **Load Testing**: Regular load testing to identify bottlenecks
 3. **Code Reviews**: Mandatory peer reviews for financial operations
 4. **Static Analysis**: Use SonarQube or similar for code quality
-
-## Project Structure
-
-```
-src/
-├── common/
-│   └── filters/
-│       └── http-exception.filter.ts
-├── transaction/
-│   └── entities/
-│       └── transaction.entity.ts
-├── wallet/
-│   ├── dto/
-│   │   ├── create-wallet.dto.ts
-│   │   ├── fund-wallet.dto.ts
-│   │   ├── transfer.dto.ts
-│   │   └── wallet-response.dto.ts
-│   ├── entities/
-│   │   └── wallet.entity.ts
-│   ├── wallet.controller.ts
-│   ├── wallet.module.ts
-│   ├── wallet.service.ts
-│   └── wallet.service.spec.ts
-├── app.module.ts
-└── main.ts
-```
-
-## License
-
-UNLICENSED
