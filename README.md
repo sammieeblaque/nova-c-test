@@ -1,98 +1,310 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Wallet Service API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A robust NestJS-based wallet service with support for wallet creation, funding, and transfers between wallets.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Features
 
-## Description
+✅ Create wallets with USD currency  
+✅ Fund wallets with validation  
+✅ Transfer funds between wallets  
+✅ Fetch wallet details with transaction history  
+✅ Idempotency support for fund/transfer operations  
+✅ Comprehensive validation and error handling  
+✅ Database constraints preventing negative balances  
+✅ Transaction-safe operations with pessimistic locking  
+✅ Unit tests included
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+## Installation
 
 ```bash
-$ pnpm install
+npm install
 ```
 
-## Compile and run the project
+## Setup
+
+1. Copy `.env.example` to `.env` and configure your database settings:
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+cp .env.example .env
 ```
 
-## Run tests
+2. Make sure PostgreSQL is running
+
+3. Run the application:
 
 ```bash
-# unit tests
-$ pnpm run test
+# Development
+npm run start:dev
 
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+# Production
+npm run build
+npm run start:prod
 ```
 
-## Deployment
+## API Endpoints
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+### 1. Create Wallet
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+**POST** `/wallets`
+
+Request:
+
+```json
+{
+  "currency": "USD" // Optional, defaults to USD
+}
+```
+
+Response:
+
+```json
+{
+  "id": "uuid",
+  "currency": "USD",
+  "balance": 0,
+  "createdAt": "2024-01-01T00:00:00.000Z",
+  "updatedAt": "2024-01-01T00:00:00.000Z"
+}
+```
+
+### 2. Fund Wallet
+
+**POST** `/wallets/:id/fund`
+
+Request:
+
+```json
+{
+  "amount": 100.5,
+  "idempotencyKey": "unique-key-123", // Optional
+  "description": "Initial funding" // Optional
+}
+```
+
+Response:
+
+```json
+{
+  "id": "uuid",
+  "currency": "USD",
+  "balance": 100.5,
+  "createdAt": "2024-01-01T00:00:00.000Z",
+  "updatedAt": "2024-01-01T00:00:00.000Z"
+}
+```
+
+### 3. Transfer Between Wallets
+
+**POST** `/wallets/:id/transfer`
+
+Request:
+
+```json
+{
+  "receiverWalletId": "receiver-uuid",
+  "amount": 50.25,
+  "idempotencyKey": "unique-transfer-key", // Optional
+  "description": "Payment for services" // Optional
+}
+```
+
+Response:
+
+```json
+{
+  "sender": {
+    "id": "sender-uuid",
+    "currency": "USD",
+    "balance": 50.25,
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  },
+  "receiver": {
+    "id": "receiver-uuid",
+    "currency": "USD",
+    "balance": 50.25,
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
+### 4. Get Wallet Details
+
+**GET** `/wallets/:id`
+
+Response:
+
+```json
+{
+  "id": "uuid",
+  "currency": "USD",
+  "balance": 100.5,
+  "createdAt": "2024-01-01T00:00:00.000Z",
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "transactions": [
+    {
+      "id": "tx-uuid",
+      "walletId": "uuid",
+      "type": "FUND",
+      "amount": 100.5,
+      "balanceBefore": 0,
+      "balanceAfter": 100.5,
+      "status": "COMPLETED",
+      "description": "Initial funding",
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+## Error Responses
+
+All errors follow this format:
+
+```json
+{
+  "statusCode": 400,
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "path": "/wallets/123/fund",
+  "error": "Bad Request",
+  "message": "Amount must be positive"
+}
+```
+
+Common error cases:
+
+- `404 Not Found`: Wallet doesn't exist
+- `400 Bad Request`: Invalid input, insufficient balance, same wallet transfer
+- `409 Conflict`: Duplicate idempotency key
+- `422 Unprocessable Entity`: Validation errors
+
+## Testing
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+# Unit tests
+npm test
+
+# Test coverage
+npm run test:cov
+
+# Watch mode
+npm run test:watch
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Key Implementation Details
 
-## Resources
+### Idempotency
 
-Check out a few resources that may come in handy when working with NestJS:
+- Both fund and transfer operations support idempotency keys
+- Duplicate requests with the same idempotency key return a 409 Conflict error
+- Prevents accidental duplicate transactions
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+### Negative Balance Prevention
 
-## Support
+- Database-level CHECK constraint ensures balance >= 0
+- Pessimistic locking prevents race conditions
+- Transactions rollback on any error
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### Transaction Safety
 
-## Stay in touch
+- All financial operations use database transactions
+- Pessimistic write locks prevent concurrent updates
+- Wallets locked in consistent order to prevent deadlocks
+- Automatic rollback on any failure
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### Validation
+
+- Class-validator decorators on all DTOs
+- Amount must be positive
+- UUID validation for wallet IDs
+- Maximum 2 decimal places for amounts
+
+## Scaling Considerations for Production
+
+### Database Optimizations
+
+1. **Read Replicas**: Route read operations (GET wallet details) to read replicas while write operations go to the primary database
+2. **Connection Pooling**: Configure TypeORM connection pool size based on expected load
+3. **Indexing**:
+   - Add indexes on `transactions.wallet_id` and `transactions.created_at` for faster transaction history queries
+   - Add index on `transactions.idempotency_key` for faster duplicate detection
+4. **Partitioning**: Partition transactions table by date for better query performance on large datasets
+
+### Application Scaling
+
+1. **Horizontal Scaling**: Deploy multiple instances behind a load balancer (already stateless)
+2. **Caching**:
+   - Cache wallet balances in Redis with short TTL
+   - Invalidate cache on updates
+   - Use for read-heavy scenarios
+3. **Queue System**:
+   - Use message queues (RabbitMQ, SQS) for async operations
+   - Process non-critical operations asynchronously
+4. **Circuit Breaker**: Implement circuit breaker pattern for external service calls
+
+### Monitoring & Observability
+
+1. **Metrics**: Track transaction success/failure rates, response times, balance integrity
+2. **Logging**: Structured logging with correlation IDs for request tracing
+3. **Alerting**: Set up alerts for failed transactions, slow queries, balance anomalies
+4. **Distributed Tracing**: Use tools like Jaeger or DataDog for request flow visibility
+
+### Security Enhancements
+
+1. **Rate Limiting**: Implement per-user/IP rate limits to prevent abuse
+2. **Authentication**: Add JWT/OAuth2 authentication
+3. **Authorization**: Implement role-based access control
+4. **Audit Trail**: Enhanced audit logging for compliance
+5. **Encryption**: Encrypt sensitive data at rest and in transit
+
+### Data Consistency
+
+1. **Event Sourcing**: Consider event sourcing pattern for complete audit trail
+2. **CQRS**: Separate read and write models for better scalability
+3. **Saga Pattern**: For complex multi-step transactions across services
+4. **Reconciliation Jobs**: Periodic jobs to verify balance integrity
+
+### Infrastructure
+
+1. **Database Backups**: Automated backups with point-in-time recovery
+2. **Multi-Region**: Deploy across regions for disaster recovery
+3. **Auto-scaling**: Configure auto-scaling based on CPU/memory/request metrics
+4. **CDN**: Use CDN for static assets if adding a frontend
+
+### Code Quality
+
+1. **E2E Tests**: Add comprehensive end-to-end tests
+2. **Load Testing**: Regular load testing to identify bottlenecks
+3. **Code Reviews**: Mandatory peer reviews for financial operations
+4. **Static Analysis**: Use SonarQube or similar for code quality
+
+## Project Structure
+
+```
+src/
+├── common/
+│   └── filters/
+│       └── http-exception.filter.ts
+├── transaction/
+│   └── entities/
+│       └── transaction.entity.ts
+├── wallet/
+│   ├── dto/
+│   │   ├── create-wallet.dto.ts
+│   │   ├── fund-wallet.dto.ts
+│   │   ├── transfer.dto.ts
+│   │   └── wallet-response.dto.ts
+│   ├── entities/
+│   │   └── wallet.entity.ts
+│   ├── wallet.controller.ts
+│   ├── wallet.module.ts
+│   ├── wallet.service.ts
+│   └── wallet.service.spec.ts
+├── app.module.ts
+└── main.ts
+```
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+UNLICENSED
