@@ -5,6 +5,7 @@ import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule } from './modules/swagger/swagger.module';
 import { HttpExceptionsFilter } from './common/http-exception.filter';
+import { TransformResponseInterceptor } from './common/transform.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -13,6 +14,7 @@ async function bootstrap() {
   const { swaggerApiRoot } = configService.get('swagger');
 
   app.useGlobalFilters(new HttpExceptionsFilter());
+  app.useGlobalInterceptors(new TransformResponseInterceptor());
 
   app.useGlobalPipes(
     new ValidationPipe({
