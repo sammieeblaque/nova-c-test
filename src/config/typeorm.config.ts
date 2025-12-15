@@ -9,6 +9,7 @@ dotenvConfig();
 
 const typeorm = {
   type: 'postgres',
+  // accounts for a hosted postgres database like supabase
   ...(process.env.NODE_ENV === 'production'
     ? {
         url: process.env.DATABASE_URL,
