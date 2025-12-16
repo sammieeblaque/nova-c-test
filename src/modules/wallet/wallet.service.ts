@@ -181,8 +181,6 @@ export class WalletService {
     }
 
     return this.entityManager.transaction(async (entityManager) => {
-      // Update balances
-
       // Acquire locks IN CONSISTENT ORDER to prevent deadlocks - INSIDE transaction
       const walletIds = [senderWalletId, receiverWalletId].sort();
       const [lockedWallet1, lockedWallet2] = await Promise.all([
