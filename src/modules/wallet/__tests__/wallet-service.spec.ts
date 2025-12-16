@@ -17,6 +17,7 @@ import { Wallet } from '../entities/wallet.entity';
 describe('WalletService', () => {
   let service: WalletService;
   let walletRepository: any;
+  let transactionRepository: any;
   let entityManager: any;
 
   // UUID v4 IDs
@@ -56,15 +57,14 @@ describe('WalletService', () => {
     walletId: MOCK_WALLET_ID,
     type: TransactionType.FUND,
     amount: 50,
-    balanceBefore: 100,
-    balanceAfter: 150,
+    openingBalance: 100,
+    closingBalance: 150,
     status: TransactionStatus.COMPLETED,
     idempotencyKey: MOCK_IDEMPOTENCY_KEY_1,
     description: 'test funding',
   };
 
   beforeEach(async () => {
-    // Create a mock entity manager that simulates the transaction behavior
     const mockEntityManager = {
       transaction: jest.fn((callback) => callback(mockEntityManager)),
       findOne: jest.fn(),
@@ -100,6 +100,7 @@ describe('WalletService', () => {
 
     service = module.get<WalletService>(WalletService);
     walletRepository = module.get(getRepositoryToken(Wallet));
+    transactionRepository = module.get(getRepositoryToken(Transaction));
     entityManager = module.get(EntityManager);
   });
 
@@ -159,43 +160,48 @@ describe('WalletService', () => {
         balance: mockWallet.balance + fundAmount,
       };
 
-      // Mock the transaction callback
       entityManager.transaction.mockImplementation(async (callback) => {
         return callback(entityManager);
       });
 
-      // No existing transaction with idempotency key
-      entityManager.findOne.mockResolvedValueOnce(null);
-      // Find wallet with lock - wallet_id from DTO is ignored, using id parameter
+      transactionRepository.findOne.mockResolvedValueOnce(null);
+
       entityManager.findOne.mockResolvedValueOnce(mockWallet);
-      // Save wallet
+
       entityManager.save.mockResolvedValueOnce(updatedWallet);
-      // Create transaction
+
       entityManager.create.mockReturnValueOnce({
         ...mockTransaction,
         amount: fundAmount,
-        balanceAfter: updatedWallet.balance,
+        openingBalance: mockWallet.balance,
+        closingBalance: updatedWallet.balance,
         idempotencyKey: MOCK_IDEMPOTENCY_KEY_2,
         description: 'testing wallet funding',
       });
-      // Save transaction
+
       entityManager.save.mockResolvedValueOnce(mockTransaction);
 
       const result = await service.fund(MOCK_WALLET_ID, {
         amount: fundAmount,
         idempotencyKey: MOCK_IDEMPOTENCY_KEY_2,
         description: 'testing wallet funding',
-        wallet_id: MOCK_WALLET_ID, // This is in the DTO but not used by service
+        wallet_id: MOCK_WALLET_ID,
       });
 
+      expect(transactionRepository.findOne).toHaveBeenCalledWith({
+        where: {
+          walletId: MOCK_WALLET_ID,
+          idempotencyKey: MOCK_IDEMPOTENCY_KEY_2,
+        },
+      });
       expect(entityManager.transaction).toHaveBeenCalled();
       expect(result.balance).toBe(5100.23);
       expect(entityManager.create).toHaveBeenCalledWith(Transaction, {
         walletId: MOCK_WALLET_ID,
         type: TransactionType.FUND,
         amount: fundAmount,
-        balanceBefore: 100,
-        balanceAfter: 5100.23,
+        openingBalance: 100,
+        closingBalance: 5100.23,
         status: TransactionStatus.COMPLETED,
         idempotencyKey: MOCK_IDEMPOTENCY_KEY_2,
         description: 'testing wallet funding',
@@ -203,21 +209,18 @@ describe('WalletService', () => {
     });
 
     it('should throw ConflictException for duplicate idempotency key', async () => {
-      entityManager.transaction.mockImplementation(async (callback) => {
-        return callback(entityManager);
-      });
-
-      // Existing transaction found
-      entityManager.findOne.mockResolvedValueOnce(mockTransaction);
+      transactionRepository.findOne.mockResolvedValueOnce(mockTransaction);
 
       await expect(
         service.fund(MOCK_WALLET_ID, {
           amount: 5000.23,
-          idempotencyKey: MOCK_IDEMPOTENCY_KEY_1, // Same as existing transaction
+          idempotencyKey: MOCK_IDEMPOTENCY_KEY_1,
           description: 'testing wallet funding',
           wallet_id: MOCK_WALLET_ID,
         }),
       ).rejects.toThrow(ConflictException);
+
+      expect(entityManager.transaction).not.toHaveBeenCalled();
     });
 
     it('should throw NotFoundException if wallet not found', async () => {
@@ -225,9 +228,8 @@ describe('WalletService', () => {
         return callback(entityManager);
       });
 
-      // No existing transaction
-      entityManager.findOne.mockResolvedValueOnce(null);
-      // Wallet not found
+      transactionRepository.findOne.mockResolvedValueOnce(null);
+
       entityManager.findOne.mockResolvedValueOnce(null);
 
       await expect(
@@ -238,6 +240,26 @@ describe('WalletService', () => {
           wallet_id: MOCK_WALLET_ID_3,
         }),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException for zero or negative amount', async () => {
+      await expect(
+        service.fund(MOCK_WALLET_ID, {
+          amount: 0,
+          idempotencyKey: MOCK_IDEMPOTENCY_KEY_1,
+          description: 'zero amount',
+          wallet_id: MOCK_WALLET_ID,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.fund(MOCK_WALLET_ID, {
+          amount: -50,
+          idempotencyKey: MOCK_IDEMPOTENCY_KEY_1,
+          description: 'negative amount',
+          wallet_id: MOCK_WALLET_ID,
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -257,41 +279,41 @@ describe('WalletService', () => {
         return callback(entityManager);
       });
 
-      // No existing transaction with idempotency key
-      entityManager.findOne.mockResolvedValueOnce(null);
-      // Find sender wallet (first in sorted IDs)
+      transactionRepository.findOne.mockResolvedValueOnce(null);
+
+      walletRepository.findOne.mockResolvedValueOnce(mockSenderWallet);
+      walletRepository.findOne.mockResolvedValueOnce(mockReceiverWallet);
+
       entityManager.findOne.mockResolvedValueOnce(mockSenderWallet);
-      // Find receiver wallet (second in sorted IDs)
       entityManager.findOne.mockResolvedValueOnce(mockReceiverWallet);
-      // Save sender wallet
+
       entityManager.save.mockResolvedValueOnce(updatedSenderWallet);
-      // Save receiver wallet
+
       entityManager.save.mockResolvedValueOnce(updatedReceiverWallet);
-      // Create sender transaction
+
       entityManager.create.mockReturnValueOnce({
-        ...mockTransaction,
         walletId: MOCK_WALLET_ID,
         type: TransactionType.DEBIT,
-        amount: -transferAmount,
-        balanceBefore: mockSenderWallet.balance,
-        balanceAfter: updatedSenderWallet.balance,
+        amount: transferAmount,
+        openingBalance: mockSenderWallet.balance,
+        closingBalance: updatedSenderWallet.balance,
+        status: TransactionStatus.COMPLETED,
+        relatedWalletId: MOCK_WALLET_ID_2,
         idempotencyKey: MOCK_IDEMPOTENCY_KEY_2,
         description: `Transfer to ${MOCK_WALLET_ID_2}`,
-        relatedWalletId: MOCK_WALLET_ID_2,
       });
-      // Create receiver transaction
+
       entityManager.create.mockReturnValueOnce({
-        ...mockTransaction,
-        id: '123e4567-e89b-12d3-a456-426614174006',
         walletId: MOCK_WALLET_ID_2,
         type: TransactionType.CREDIT,
         amount: transferAmount,
-        balanceBefore: mockReceiverWallet.balance,
-        balanceAfter: updatedReceiverWallet.balance,
-        description: `Transfer from ${MOCK_WALLET_ID}`,
+        openingBalance: mockReceiverWallet.balance,
+        closingBalance: updatedReceiverWallet.balance,
+        status: TransactionStatus.COMPLETED,
         relatedWalletId: MOCK_WALLET_ID,
+        description: `Transfer from ${MOCK_WALLET_ID}`,
       });
-      // Save transactions
+
       entityManager.save.mockResolvedValueOnce([{}, {}]);
 
       const result = await service.transfer({
@@ -317,34 +339,71 @@ describe('WalletService', () => {
           description: 'self transfer',
         }),
       ).rejects.toThrow(BadRequestException);
+
+      expect(transactionRepository.findOne).not.toHaveBeenCalled();
+      expect(entityManager.transaction).not.toHaveBeenCalled();
     });
 
-    it('should throw BadRequestException for insufficient balance', async () => {
-      const insufficientBalanceWallet = {
-        ...mockSenderWallet,
-        balance: 20,
-      };
-
-      entityManager.transaction.mockImplementation(async (callback) => {
-        return callback(entityManager);
-      });
-
-      // No existing transaction
-      entityManager.findOne.mockResolvedValueOnce(null);
-      // Find sender wallet
-      entityManager.findOne.mockResolvedValueOnce(insufficientBalanceWallet);
-      // Find receiver wallet
-      entityManager.findOne.mockResolvedValueOnce(mockReceiverWallet);
+    it('should throw BadRequestException for zero or negative amount', async () => {
+      await expect(
+        service.transfer({
+          senderWalletId: MOCK_WALLET_ID,
+          receiverWalletId: MOCK_WALLET_ID_2,
+          amount: 0,
+          idempotencyKey: MOCK_IDEMPOTENCY_KEY_1,
+          description: 'zero transfer',
+        }),
+      ).rejects.toThrow(BadRequestException);
 
       await expect(
         service.transfer({
           senderWalletId: MOCK_WALLET_ID,
           receiverWalletId: MOCK_WALLET_ID_2,
-          amount: 50, // More than sender's balance
+          amount: -50,
+          idempotencyKey: MOCK_IDEMPOTENCY_KEY_1,
+          description: 'negative transfer',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw ConflictException for duplicate idempotency key', async () => {
+      transactionRepository.findOne.mockResolvedValueOnce(mockTransaction);
+
+      await expect(
+        service.transfer({
+          senderWalletId: MOCK_WALLET_ID,
+          receiverWalletId: MOCK_WALLET_ID_2,
+          amount: 30,
+          idempotencyKey: MOCK_IDEMPOTENCY_KEY_1,
+          description: 'duplicate transfer',
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(entityManager.transaction).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException for insufficient balance (pre-transaction check)', async () => {
+      const insufficientBalanceWallet = {
+        ...mockSenderWallet,
+        balance: 20,
+      };
+
+      transactionRepository.findOne.mockResolvedValueOnce(null);
+
+      walletRepository.findOne.mockResolvedValueOnce(insufficientBalanceWallet);
+      walletRepository.findOne.mockResolvedValueOnce(mockReceiverWallet);
+
+      await expect(
+        service.transfer({
+          senderWalletId: MOCK_WALLET_ID,
+          receiverWalletId: MOCK_WALLET_ID_2,
+          amount: 50,
           idempotencyKey: MOCK_IDEMPOTENCY_KEY_1,
           description: 'insufficient balance transfer',
         }),
       ).rejects.toThrow(BadRequestException);
+
+      expect(entityManager.transaction).not.toHaveBeenCalled();
     });
 
     it('should throw BadRequestException for different currencies', async () => {
@@ -353,16 +412,10 @@ describe('WalletService', () => {
         currency: 'EUR',
       };
 
-      entityManager.transaction.mockImplementation(async (callback) => {
-        return callback(entityManager);
-      });
+      transactionRepository.findOne.mockResolvedValueOnce(null);
 
-      // No existing transaction
-      entityManager.findOne.mockResolvedValueOnce(null);
-      // Find sender wallet
-      entityManager.findOne.mockResolvedValueOnce(mockSenderWallet);
-      // Find receiver wallet with different currency
-      entityManager.findOne.mockResolvedValueOnce(differentCurrencyWallet);
+      walletRepository.findOne.mockResolvedValueOnce(mockSenderWallet);
+      walletRepository.findOne.mockResolvedValueOnce(differentCurrencyWallet);
 
       await expect(
         service.transfer({
@@ -373,29 +426,48 @@ describe('WalletService', () => {
           description: 'cross-currency transfer',
         }),
       ).rejects.toThrow(BadRequestException);
+
+      // Should fail in pre-transaction validation
+      expect(entityManager.transaction).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if sender wallet not found', async () => {
+      // BEFORE transaction: No existing transaction
+      transactionRepository.findOne.mockResolvedValueOnce(null);
+
+      // BEFORE transaction: Sender wallet not found
+      walletRepository.findOne.mockResolvedValueOnce(null);
+
+      await expect(
+        service.transfer({
+          senderWalletId: MOCK_WALLET_ID_3,
+          receiverWalletId: MOCK_WALLET_ID_2,
+          amount: 30,
+          idempotencyKey: MOCK_IDEMPOTENCY_KEY_1,
+          description: 'sender not found',
+        }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(entityManager.transaction).not.toHaveBeenCalled();
     });
 
     it('should throw NotFoundException if receiver wallet not found', async () => {
-      entityManager.transaction.mockImplementation(async (callback) => {
-        return callback(entityManager);
-      });
+      transactionRepository.findOne.mockResolvedValueOnce(null);
 
-      // No existing transaction
-      entityManager.findOne.mockResolvedValueOnce(null);
-      // Sender wallet found
-      entityManager.findOne.mockResolvedValueOnce(mockSenderWallet);
-      // Receiver wallet not found
-      entityManager.findOne.mockResolvedValueOnce(null);
+      walletRepository.findOne.mockResolvedValueOnce(mockSenderWallet);
+      walletRepository.findOne.mockResolvedValueOnce(null);
 
       await expect(
         service.transfer({
           senderWalletId: MOCK_WALLET_ID,
-          receiverWalletId: '123e4567-e89b-12d3-a856-426614174006', // Non-existent
+          receiverWalletId: '123e4567-e89b-12d3-a856-426614174006',
           amount: 30,
           idempotencyKey: MOCK_IDEMPOTENCY_KEY_1,
           description: 'receiver not found',
         }),
       ).rejects.toThrow(NotFoundException);
+
+      expect(entityManager.transaction).not.toHaveBeenCalled();
     });
   });
 
