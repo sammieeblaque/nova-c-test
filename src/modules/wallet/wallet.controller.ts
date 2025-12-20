@@ -63,23 +63,7 @@ export class WalletController {
     sender: WalletResponseDto;
     receiver: WalletResponseDto;
   }> {
-    const result = await this.walletService.transfer(transferDto);
-    return {
-      sender: {
-        id: result.sender.id,
-        currency: result.sender.currency,
-        balance: result.sender.balance,
-        createdAt: result.sender.createdAt,
-        updatedAt: result.sender.updatedAt,
-      },
-      receiver: {
-        id: result.receiver.id,
-        currency: result.receiver.currency,
-        balance: result.receiver.balance,
-        createdAt: result.receiver.createdAt,
-        updatedAt: result.receiver.updatedAt,
-      },
-    };
+    return await this.walletService.transfer(transferDto);
   }
 
   @Get(':id')
