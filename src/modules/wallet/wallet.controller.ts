@@ -86,14 +86,6 @@ export class WalletController {
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<WalletDetailsResponseDto> {
-    const wallet = await this.walletService.findOneWithTransactions(id);
-    return {
-      id: wallet.id,
-      currency: wallet.currency,
-      balance: wallet.balance,
-      createdAt: wallet.createdAt,
-      updatedAt: wallet.updatedAt,
-      transactions: wallet.transactions,
-    };
+    return await this.walletService.findOneWithTransactions(id);
   }
 }
